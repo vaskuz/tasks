@@ -914,21 +914,26 @@ document.addEventListener('DOMContentLoaded', () => {
 async function loadTasks() {
   setSaveStatus('loading', 'Загрузка данных...');
   try {
-    // Try GitHub first
-    const res = await fetch(RAW_URL + '?t=' + Date.now());
+    // Load via GitHub API (not raw URL — raw is CDN-cached, API always fresh)
+    const token = localStorage.getItem('gh_token');
+    const headers = { Accept: 'application/vnd.github.v3+json' };
+    if (token) headers.Authorization = `token ${token}`;
+    const res = await fetch(API_URL, { headers });
     if (res.ok) {
-      allTasks = await res.json();
+      const data = await res.json();
+      const content = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+      allTasks = JSON.parse(content);
       allTasks = allTasks.map((t, i) => ({ ...t, id: t.id || (i + 1) }));
       setSaveStatus('ok', 'Данные из GitHub');
     } else {
-      throw new Error('GitHub not available');
+      throw new Error('GitHub API недоступен');
     }
   } catch(e) {
     // Fallback to localStorage
     const local = localStorage.getItem('es_tasks');
     if (local) {
       allTasks = JSON.parse(local);
-      setSaveStatus('warn', 'Локальные данные');
+      setSaveStatus('warn', 'Локальные данные (нет связи с GitHub)');
     } else {
       allTasks = [];
       setSaveStatus('error', 'Нет данных');
